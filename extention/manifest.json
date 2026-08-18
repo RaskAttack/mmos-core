@@ -6,6 +6,12 @@
   "permissions": ["tabs", "activeTab"],
   "host_permissions": ["<all_urls>"],
   "background": {
-    "service_worker": "background.js"
+    "scripts": ["background.js"]
+  },
+  "browser_specific_settings": {
+    "gecko": {
+      "id": "mmos-tracker@retrotechspecs.com",
+      "strict_min_version": "109.0"
+    }
   }
 }
