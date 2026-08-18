@@ -1,0 +1,17 @@
+{
+  "manifest_version": 3,
+  "name": "MMOS Context Tracker",
+  "version": "1.0",
+  "description": "Tracks active website for MMOS multiplayer cursors.",
+  "permissions": ["tabs", "activeTab"],
+  "host_permissions": ["<all_urls>"],
+  "background": {
+    "scripts": ["background.js"]
+  },
+  "browser_specific_settings": {
+    "gecko": {
+      "id": "mmos-tracker@retrotechspecs.com",
+      "strict_min_version": "109.0"
+    }
+  }
+}
