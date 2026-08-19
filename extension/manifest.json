@@ -2,11 +2,14 @@
   "manifest_version": 3,
   "name": "MMOS Context Tracker",
   "version": "1.0",
-  "description": "Tracks active website for MMOS multiplayer cursors.",
+  "description": "Tracks active website and creates your cursor.",
   "permissions": ["tabs", "activeTab"],
-  "host_permissions": ["<all_urls>"],
+  "host_permissions": [""],
   "background": {
     "scripts": ["background.js"]
+  },
+  "action": {
+    "default_popup": "index.html"
   },
   "browser_specific_settings": {
     "gecko": {
