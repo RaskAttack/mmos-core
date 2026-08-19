@@ -1,0 +1,32 @@
+name: Build MMOS Arch ISO
+
+on:
+  push:
+    branches: [ "main" ]
+  workflow_dispatch: # Allows you to manually trigger a build from GitHub
+
+jobs:
+  build-iso:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout Code
+        uses: actions/checkout@v4
+
+      - name: Build Custom Arch ISO
+        run: |
+          docker run --rm --privileged \
+            -v $(pwd):/mmos-build \
+            archlinux:latest \
+            /bin/bash -c "
+              pacman -Sy --noconfirm archlinux-keyring && \
+              pacman -Syu --noconfirm archiso && \
+              mkarchiso -v -w /tmp/work -o /mmos-build/out /mmos-build/arch-profile
+            "
+
+      - name: Upload ISO as Artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: MMOS-Bootable-ISO
+          path: out/*.iso
+          retention-days: 7
