@@ -128,3 +128,13 @@ xdg-utils
 xfsprogs
 xl2tpd
 zsh
+hyprland
+kitty
+waybar
+xdg-desktop-portal-hyprland
+python
+python-pip
+python-requests
+gtk3
+python-gobject
+gtk-layer-shell
