@@ -4,8 +4,9 @@ import threading
 import json
 import requests
 import subprocess
-from gi.repository import GLib
 import math
+import hashlib
+from gi.repository import GLib
 
 gi.require_version('Gtk', '3.0')
 gi.require_version('GtkLayerShell', '0.1')
@@ -13,7 +14,14 @@ from gi.repository import Gtk, Gdk, GtkLayerShell
 import cairo
 
 POCKETBASE_URL = "https://mmos.retrotechspecs.com"
-MY_ID = None  # We will get this from the server on startup
+MY_ID = None
+CURRENT_CONTEXT = ""
+
+# Simulated local settings (Later this will be loaded from a settings.json file during OS login)
+LOCAL_SETTINGS = {
+    "privacy": "all",  # Options: "all", "friends", "none"
+    "friends_list": [] # List of friend Record IDs
+}
 
 class MMOSClient(Gtk.Window):
     def __init__(self):
@@ -45,7 +53,7 @@ class MMOSClient(Gtk.Window):
         self.show_all()
 
     def on_draw(self, widget, cr):
-        # Force click-through on every frame
+        # Force click-through on every frame (The "Nuclear Fix")
         empty_region = cairo.Region()
         self.input_shape_combine_region(empty_region)
 
@@ -69,8 +77,14 @@ class MMOSClient(Gtk.Window):
         self.other_players[player_id] = (x, y)
         self.queue_draw()
 
+    def remove_player(self, player_id):
+        """Removes a player from the screen when they leave the app"""
+        if player_id in self.other_players:
+            del self.other_players[player_id]
+            self.queue_draw()
 
-# --- NETWORK LOGIC ---
+
+# --- NETWORK & SYSTEM LOGIC ---
 
 def join_server():
     """Tells PocketBase we are online and gets a unique Record ID"""
@@ -80,7 +94,7 @@ def join_server():
         response = requests.post(f"{POCKETBASE_URL}/api/collections/presence/records", json={
             "x": 0,
             "y": 0,
-            "context_hash": "desktop" # Hardcoded for now
+            "context_hash": "desktop"
         })
         response.raise_for_status()
         MY_ID = response.json().get("id")
@@ -104,17 +118,39 @@ def get_local_mouse():
     t = time.time() * 2
     return int(960 + 300 * math.cos(t)), int(540 + 300 * math.sin(t))
 
+def get_active_context():
+    """Gets the currently focused window class and hashes it for privacy"""
+    try:
+        result = subprocess.run(["hyprctl", "activewindow", "-j"], capture_output=True, text=True)
+        if result.returncode == 0 and result.stdout.strip() and result.stdout.strip() != "{}":
+            window_data = json.loads(result.stdout)
+            app_class = window_data.get("class", "desktop")
+            return hashlib.sha256(app_class.encode()).hexdigest()
+    except Exception:
+        pass # Not running Hyprland or no active window
+
+    # Fallback for KDE testing
+    return hashlib.sha256(b"kde-desktop").hexdigest()
+
 def sender_loop():
-    """Constantly reads the mouse and updates PocketBase"""
+    """Constantly reads the mouse/context and updates PocketBase"""
+    global CURRENT_CONTEXT
     while MY_ID is None:
-        time.sleep(1) # Wait until we have joined
+        time.sleep(1)
 
     url = f"{POCKETBASE_URL}/api/collections/presence/records/{MY_ID}"
 
     while True:
+        # PRIVACY CHECK: Do not broadcast if set to none
+        if LOCAL_SETTINGS["privacy"] == "none":
+            time.sleep(1)
+            continue
+
         x, y = get_local_mouse()
+        CURRENT_CONTEXT = get_active_context()
+
         try:
-            requests.patch(url, json={"x": x, "y": y})
+            requests.patch(url, json={"x": x, "y": y, "context_hash": CURRENT_CONTEXT})
         except:
             pass # Ignore temporary network drops
         time.sleep(0.1) # Update 10 times a second
@@ -136,33 +172,39 @@ def receiver_loop(overlay):
                     try:
                         data = json.loads(data_str)
                         if data.get("clientId"):
-                            # Handshake complete, subscribe to presence
                             requests.post(url, json={"clientId": data["clientId"], "subscriptions": ["presence"]})
 
-                        # Handle live updates
                         record = data.get("record", {})
                         record_id = record.get("id")
 
-                        # Only update if it's NOT us!
                         if record_id and record_id != MY_ID:
+                            their_context = record.get("context_hash")
+
+                            # 1. CONTEXT CHECK: Same app?
+                            if their_context != CURRENT_CONTEXT:
+                                GLib.idle_add(overlay.remove_player, record_id)
+                                continue
+
+                            # 2. FRIEND CHECK
+                            if LOCAL_SETTINGS["privacy"] == "friends":
+                                if record_id not in LOCAL_SETTINGS["friends_list"]:
+                                    continue
+
+                            # Draw them!
                             x, y = record.get("x", 0), record.get("y", 0)
                             GLib.idle_add(overlay.update_player, record_id, int(x), int(y))
 
                     except json.JSONDecodeError:
                         continue
         except:
-            time.sleep(3)
+            time.sleep(3) # Wait 3 seconds before trying to reconnect
 
 
 if __name__ == '__main__':
-    # 1. Start the overlay
     app = MMOSClient()
 
-    # 2. Join the server
     if join_server():
-        # 3. Start sending and receiving data in the background
         threading.Thread(target=sender_loop, daemon=True).start()
         threading.Thread(target=receiver_loop, args=(app,), daemon=True).start()
 
-    # 4. Start the UI
     Gtk.main()
