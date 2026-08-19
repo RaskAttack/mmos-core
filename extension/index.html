@@ -5,7 +5,6 @@
         body { background-color: #2b2b2b; color: white; display: flex; flex-direction: column; align-items: center; font-family: sans-serif; margin: 20px; }
         #grid { 
             display: grid; 
-            /* Set the size of your grid matrix here: 16x16 */
             grid-template-columns: repeat(16, 20px); 
             grid-template-rows: repeat(16, 20px); 
             gap: 1px; 
@@ -32,77 +31,12 @@
     <h2>MMOS Cursor Creator</h2>
     <input type="color" id="colorPicker" value="#ff0000" style="margin-bottom: 10px; cursor: pointer;">
     
-    <!-- The visible drawing grid -->
     <div id="grid"></div>
     
-    <button onclick="saveCursor()">Save Cursor (.png)</button>
+    <button id="saveBtn">Save Cursor (.png)</button>
 
-    <!-- This hidden canvas is what actually generates the 16x16 image -->
     <canvas id="hiddenCanvas" width="16" height="16" style="display:none;"></canvas>
 
-    <script>
-        const grid = document.getElementById('grid');
-        const colorPicker = document.getElementById('colorPicker');
-        let isDrawing = false;
-
-        // --- 1. Generate the Drawing Grid ---
-        // 16x16 = 256 pixels
-        for (let i = 0; i < 256; i++) {
-            const pixel = document.createElement('div');
-            pixel.className = 'pixel';
-            // Set default transparent background
-            pixel.style.backgroundColor = "rgba(0,0,0,0)";
-            
-            // Allow clicking and dragging to draw
-            pixel.addEventListener('mousedown', (e) => { isDrawing = true; e.target.style.backgroundColor = colorPicker.value; });
-            pixel.addEventListener('mouseover', (e) => { if (isDrawing) e.target.style.backgroundColor = colorPicker.value; });
-            
-            grid.appendChild(pixel);
-        }
-        // Stop drawing when mouse is released anywhere on the screen
-        document.addEventListener('mouseup', () => { isDrawing = false; });
-
-        // --- 2. The Core Function: Save to PNG ---
-        function saveCursor() {
-            const canvas = document.getElementById('hiddenCanvas');
-            const ctx = canvas.getContext('2d');
-            
-            // 2a. Clear the canvas before painting (makes it transparent)
-            ctx.clearRect(0, 0, canvas.width, canvas.height);
-
-            // 2b. Get all the pixels from the drawing grid
-            const gridPixels = document.querySelectorAll('#grid .pixel');
-            
-            // 2c. Loop through the grid and draw matching 1x1 pixels on the canvas
-            gridPixels.forEach((pixel, index) => {
-                const color = pixel.style.backgroundColor;
-                
-                // Don't paint if it's transparent/empty
-                if (color === "rgba(0, 0, 0, 0)" || !color) return;
-
-                // Calculate the canvas X/Y coordinates from the grid index (0-255)
-                const x = index % 16;
-                const y = Math.floor(index / 16);
-
-                // Set the paint color
-                ctx.fillStyle = color;
-                // Draw a 1x1 rectangle
-                ctx.fillRect(x, y, 1, 1);
-            });
-
-            // 2d. Convert the canvas data into a base64 PNG image string
-            const imageString = canvas.toDataURL("image/png");
-
-            // 2e. Create a temporary 'click' link to trigger the download
-            const downloadLink = document.createElement('a');
-            downloadLink.href = imageString;
-            downloadLink.download = 'mmos_cursor.png'; // The default filename
-            
-            // Add it to the document, click it, and remove it.
-            document.body.appendChild(downloadLink);
-            downloadLink.click();
-            document.body.removeChild(downloadLink);
-        }
-    </script>
+    <script src="popup.js"></script>
 </body>
 </html>
