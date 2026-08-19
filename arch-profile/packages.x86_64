@@ -138,3 +138,11 @@ python-requests
 gtk3
 python-gobject
 gtk-layer-shell
+hyprland
+kitty
+python
+python-requests
+python-gobject
+python-cairo
+gtk3
+gtk-layer-shell
