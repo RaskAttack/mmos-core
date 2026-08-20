@@ -6,6 +6,7 @@ import requests
 import subprocess
 import math
 import hashlib
+import atexit
 from gi.repository import GLib
 
 gi.require_version('Gtk', '3.0')
@@ -103,6 +104,16 @@ def join_server():
     except Exception as e:
         print(f"Failed to join server: {e}")
         return False
+
+def leave_server():
+    """Deletes our presence record from the database when we close the OS"""
+    if MY_ID:
+        print(f"Shutting down... deleting record {MY_ID} from server.")
+        try:
+            # Send a fast DELETE request to PocketBase
+            requests.delete(f"{POCKETBASE_URL}/api/collections/presence/records/{MY_ID}", timeout=2)
+        except Exception:
+            pass # Ignore errors if the internet is already disconnected
 
 def get_local_mouse():
     """Gets local mouse coordinates. Uses hyprctl on the OS, fakes it on KDE"""
@@ -204,7 +215,14 @@ if __name__ == '__main__':
     app = MMOSClient()
 
     if join_server():
+        # Tell Python to ALWAYS run leave_server() right before the script dies
+        atexit.register(leave_server)
+
         threading.Thread(target=sender_loop, daemon=True).start()
         threading.Thread(target=receiver_loop, args=(app,), daemon=True).start()
 
-    Gtk.main()
+    # Run the UI. Wrap it in a try/except so Ctrl+C closes it cleanly.
+    try:
+        Gtk.main()
+    except KeyboardInterrupt:
+        pass

@@ -6,5 +6,5 @@ export XDG_SESSION_TYPE=wayland
 
 # Auto-start Hyprland on login
 if [ -z "$DISPLAY" ] && [ "$XDG_VTNR" -eq 1 ]; then
-  exec Hyprland
+  Hyprland
 fi
