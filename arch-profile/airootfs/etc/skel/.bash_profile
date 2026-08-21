@@ -4,7 +4,7 @@ export WLR_RENDERER_ALLOW_SOFTWARE=1
 export LIBGL_ALWAYS_SOFTWARE=1
 export XDG_SESSION_TYPE=wayland
 
-# Auto-start Hyprland on login
+# Auto-start start-hyprland on login
 if [ -z "$DISPLAY" ] && [ "$XDG_VTNR" -eq 1 ]; then
-  Hyprland
+  start-hyprland
 fi

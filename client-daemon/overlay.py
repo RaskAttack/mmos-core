@@ -103,16 +103,24 @@ class MMOSClient(Gtk.Window):
 
 def join_server():
     global MY_ID
-    print("Joining MMOS Server...")
+
+    saved_player_id = LOCAL_SETTINGS.get("player_id")
+    if not saved_player_id or saved_player_id == "OFFLINE_MODE":
+        print("No valid player ID found. Running in offline mode.")
+        return False
+
+    print(f"Authenticating as {saved_player_id}...")
     try:
-        response = requests.post(f"{POCKETBASE_URL}/api/collections/presence/records", json={
+        # Create a new presence record linked to the persistent player account
+        response = requests.post(f"{POCKETBASE_URL}/api/collections/persistance/records", json={
+            "player_id": saved_player_id,
             "x": 0,
             "y": 0,
-            "context_hash": "desktop"
+            "app_hash": "desktop"
         })
         response.raise_for_status()
         MY_ID = response.json().get("id")
-        print(f"Successfully joined! My ID is: {MY_ID}")
+        print(f"Successfully joined the map! Session ID: {MY_ID}")
         return True
     except Exception as e:
         print(f"Failed to join server: {e}")
