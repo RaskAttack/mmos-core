@@ -202,7 +202,7 @@ class MMOSInstaller(Gtk.Window):
             json.dump(settings, f, indent=4)
 
         print("Setup complete! Saved to:", SETTINGS_FILE)
-        sys.exit(0)
+        os.exit(0)
 
 if __name__ == '__main__':
     app = MMOSInstaller()

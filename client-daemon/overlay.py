@@ -29,6 +29,7 @@ def load_settings():
         except Exception:
             pass
     return {
+        "player_id": "OFFLINE_MODE",
         "username": "Player",
         "visibility": "all",
         "broadcasting": "all",
@@ -63,6 +64,14 @@ class MMOSClient(Gtk.Window):
         self.connect('draw', self.on_draw)
         self.show_all()
 
+    def hex_to_rgb(self, hex_color):
+        """Converts #FF0000 into Cairo-friendly (1.0, 0.0, 0.0)"""
+        try:
+            hex_color = hex_color.lstrip('#')
+            return tuple(int(hex_color[i:i+2], 16)/255.0 for i in (0, 2, 4))
+        except Exception:
+            return (1.0, 0.0, 0.0) # Fallback to red if parsing fails
+
     def on_draw(self, widget, cr):
         empty_region = cairo.Region()
         self.input_shape_combine_region(empty_region)
@@ -78,16 +87,22 @@ class MMOSClient(Gtk.Window):
             pixel_art = data.get("pixel_art", [])
 
             if not pixel_art:
+                # Fallback solid box if no art exists
                 cr.set_source_rgba(1.0, 0.0, 0.0, 1.0)
                 cr.rectangle(x, y, 16, 16)
                 cr.fill()
                 continue
 
+            # Render the 16x16 grid!
+            scale = 2 # Multiplies the grid so it renders as a 32x32 cursor
+
             for row_idx, row in enumerate(pixel_art):
-                for col_idx, pixel in enumerate(row):
-                    if pixel == 1:
-                        cr.set_source_rgba(1.0, 0.0, 0.0, 1.0)
-                        cr.rectangle(x + col_idx, y + row_idx, 1, 1)
+                for col_idx, color in enumerate(row):
+                    if color and isinstance(color, str) and color.startswith("#"):
+                        r, g, b = self.hex_to_rgb(color)
+                        cr.set_source_rgba(r, g, b, 1.0)
+                        # Draw the scaled pixel
+                        cr.rectangle(x + (col_idx * scale), y + (row_idx * scale), scale, scale)
                         cr.fill()
 
         return False
@@ -111,13 +126,12 @@ def join_server():
 
     print(f"Authenticating as {saved_player_id}...")
     try:
-        # Create a new presence record linked to the persistent player account
         response = requests.post(f"{POCKETBASE_URL}/api/collections/persistance/records", json={
             "player_id": saved_player_id,
             "x": 0,
             "y": 0,
             "app_hash": "desktop"
-        })
+        }, timeout=5)
         response.raise_for_status()
         MY_ID = response.json().get("id")
         print(f"Successfully joined the map! Session ID: {MY_ID}")
@@ -130,7 +144,7 @@ def leave_server():
     if MY_ID:
         print(f"Shutting down... removing record {MY_ID}")
         try:
-            requests.delete(f"{POCKETBASE_URL}/api/collections/presence/records/{MY_ID}", timeout=2)
+            requests.delete(f"{POCKETBASE_URL}/api/collections/persistance/records/{MY_ID}", timeout=2)
         except Exception:
             pass
 
@@ -163,7 +177,7 @@ def sender_loop():
     while MY_ID is None:
         time.sleep(1)
 
-    url = f"{POCKETBASE_URL}/api/collections/presence/records/{MY_ID}"
+    url = f"{POCKETBASE_URL}/api/collections/persistance/records/{MY_ID}"
 
     while True:
         if LOCAL_SETTINGS.get("broadcasting") == "none":
@@ -174,7 +188,7 @@ def sender_loop():
         CURRENT_CONTEXT = get_active_context()
 
         try:
-            requests.patch(url, json={"x": x, "y": y, "context_hash": CURRENT_CONTEXT})
+            requests.patch(url, json={"x": x, "y": y, "app_hash": CURRENT_CONTEXT}, timeout=2)
         except Exception:
             pass
         time.sleep(0.1)
@@ -199,13 +213,13 @@ def receiver_loop(overlay):
                     try:
                         data = json.loads(data_str)
                         if data.get("clientId"):
-                            requests.post(url, json={"clientId": data["clientId"], "subscriptions": ["presence"]})
+                            requests.post(url, json={"clientId": data["clientId"], "subscriptions": ["persistance"]}, timeout=2)
 
                         record = data.get("record", {})
                         record_id = record.get("id")
 
                         if record_id and record_id != MY_ID:
-                            their_context = record.get("context_hash")
+                            their_context = record.get("app_hash")
 
                             if their_context != CURRENT_CONTEXT:
                                 GLib.idle_add(overlay.remove_player, record_id)
@@ -216,7 +230,12 @@ def receiver_loop(overlay):
                                     continue
 
                             x, y = record.get("x", 0), record.get("y", 0)
+
+                            # TEMPORARY: For testing the graphics engine right now,
+                            # we are rendering other players using YOUR local pixel art array!
+                            # In the next step, we will wire this up to pull THEIR art from the 'players' collection.
                             pixel_art = LOCAL_SETTINGS.get("pixel_art", [])
+
                             GLib.idle_add(overlay.update_player, record_id, int(x), int(y), pixel_art)
 
                     except json.JSONDecodeError:
