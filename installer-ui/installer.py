@@ -4,31 +4,37 @@ import os
 gi.require_version('Gtk', '3.0')
 from gi.repository import Gtk, Gdk
 
-# Where we will save the user's profile
 SETTINGS_FILE = os.path.expanduser("~/.config/mmos/settings.json")
 
 class MMOSInstaller(Gtk.Window):
     def __init__(self):
-        super().__init__(title="MMOS - Create Your Player")
-        self.set_default_size(500, 600)
+        super().__init__(title="MMOS - Setup Wizard")
+        self.set_default_size(520, 680)
         self.set_position(Gtk.WindowPosition.CENTER)
-        self.set_border_width(20)
+        self.set_border_width(15)
 
-        # Main Layout container
+        # Main Scroll Container to prevent button clipping
+        scrolled = Gtk.ScrolledWindow()
+        scrolled.set_policy(Gtk.PolicyType.NEVER, Gtk.PolicyType.AUTOMATIC)
+        self.add(scrolled)
+
         vbox = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=15)
-        self.add(vbox)
+        scrolled.add(vbox)
 
         # 1. Title
         title = Gtk.Label()
-        title.set_markup("<span size='x-large' weight='bold'>Welcome to MMOS</span>")
-        vbox.pack_start(title, False, False, 0)
+        title.set_markup("<span size='x-large' weight='bold'>MMOS Character Setup</span>")
+        vbox.pack_start(title, False, False, 5)
 
-        # 2. Username Input
+        # 2. Username Input with Label
+        user_box = Gtk.Box(orientation=Gtk.Orientation.HORIZONTAL, spacing=10)
+        user_box.pack_start(Gtk.Label(label="Username:"), False, False, 0)
         self.username_entry = Gtk.Entry()
-        self.username_entry.set_placeholder_text("Enter Username...")
-        vbox.pack_start(self.username_entry, False, False, 0)
+        self.username_entry.set_placeholder_text("Enter player name...")
+        user_box.pack_start(self.username_entry, True, True, 0)
+        vbox.pack_start(user_box, False, False, 0)
 
-        # 3. Mouse Mode (Standard vs WASD)
+        # 3. Control Scheme
         mode_box = Gtk.Box(orientation=Gtk.Orientation.HORIZONTAL, spacing=10)
         mode_box.pack_start(Gtk.Label(label="Control Mode:"), False, False, 0)
         self.mode_combo = Gtk.ComboBoxText()
@@ -38,68 +44,83 @@ class MMOSInstaller(Gtk.Window):
         mode_box.pack_start(self.mode_combo, True, True, 0)
         vbox.pack_start(mode_box, False, False, 0)
 
-        # 4. Privacy Mode
-        privacy_box = Gtk.Box(orientation=Gtk.Orientation.HORIZONTAL, spacing=10)
-        privacy_box.pack_start(Gtk.Label(label="Privacy:"), False, False, 0)
-        self.privacy_combo = Gtk.ComboBoxText()
-        self.privacy_combo.append("all", "Everyone can see me")
-        self.privacy_combo.append("friends", "Friends Only")
-        self.privacy_combo.append("none", "Offline (Hidden)")
-        self.privacy_combo.set_active(0)
-        privacy_box.pack_start(self.privacy_combo, True, True, 0)
-        vbox.pack_start(privacy_box, False, False, 0)
+        # 4. Visibility (Who I see)
+        vis_box = Gtk.Box(orientation=Gtk.Orientation.HORIZONTAL, spacing=10)
+        vis_box.pack_start(Gtk.Label(label="Visibility (Who I see):"), False, False, 0)
+        self.vis_combo = Gtk.ComboBoxText()
+        self.vis_combo.append("all", "See Everyone")
+        self.vis_combo.append("friends", "See Friends Only")
+        self.vis_combo.append("none", "See Nobody")
+        self.vis_combo.set_active(0)
+        vis_box.pack_start(self.vis_combo, True, True, 0)
+        vbox.pack_start(vis_box, False, False, 0)
 
-        # 5. The 16x16 Pixel Art Grid
-        vbox.pack_start(Gtk.Label(label="Draw Your Cursor (Click to toggle pixels):"), False, False, 10)
+        # 5. Broadcasting (Who sees me)
+        broad_box = Gtk.Box(orientation=Gtk.Orientation.HORIZONTAL, spacing=10)
+        broad_box.pack_start(Gtk.Label(label="Broadcasting (Who sees me):"), False, False, 0)
+        self.broad_combo = Gtk.ComboBoxText()
+        self.broad_combo.append("all", "Broadcast to Everyone")
+        self.broad_combo.append("friends", "Broadcast to Friends Only")
+        self.broad_combo.append("none", "Do Not Broadcast (Offline)")
+        self.broad_combo.set_active(0)
+        broad_box.pack_start(self.broad_combo, True, True, 0)
+        vbox.pack_start(broad_box, False, False, 0)
+
+        # 6. Drag-to-Draw 16x16 Pixel Art Canvas
+        vbox.pack_start(Gtk.Label(label="Draw Your Cursor (Click or Drag to Paint):"), False, False, 5)
 
         self.grid = Gtk.Grid()
         self.grid.set_halign(Gtk.Align.CENTER)
-        self.pixels = {} # Stores the state of our 16x16 grid
+        self.pixels = {}
 
         for y in range(16):
             for x in range(16):
-                # Create a clickable box for each pixel
-                event_box = Gtk.EventBox()
-                event_box.set_size_request(20, 20)
+                box = Gtk.EventBox()
+                box.set_size_request(20, 20)
+                box.add_events(Gdk.EventMask.BUTTON_PRESS_MASK | Gdk.EventMask.ENTER_NOTIFY_MASK)
 
-                # Start them all as black (0 = black, 1 = red/color)
-                self.set_pixel_color(event_box, False)
-                self.pixels[(x, y)] = {"widget": event_box, "active": False}
+                self.set_pixel_color(box, False)
+                self.pixels[(x, y)] = {"widget": box, "active": False}
 
-                # Listen for mouse clicks
-                event_box.connect("button-press-event", self.on_pixel_clicked, x, y)
-                self.grid.attach(event_box, x, y, 1, 1)
+                box.connect("button-press-event", self.on_pixel_click, x, y)
+                box.connect("enter-notify-event", self.on_pixel_drag, x, y)
+                self.grid.attach(box, x, y, 1, 1)
 
-        vbox.pack_start(self.grid, True, True, 0)
+        vbox.pack_start(self.grid, False, False, 5)
 
-        # 6. Finish Button
+        # 7. Action Button
         finish_btn = Gtk.Button(label="Finish Installation")
-        finish_btn.get_style_context().add_class("suggested-action") # Makes it blue
+        finish_btn.set_size_request(-1, 45)
+        finish_btn.get_style_context().add_class("suggested-action")
         finish_btn.connect("clicked", self.save_and_exit)
-        vbox.pack_start(finish_btn, False, False, 0)
+        vbox.pack_start(finish_btn, False, False, 10)
 
     def set_pixel_color(self, widget, is_active):
-        """Helper to color the pixel blocks"""
-        color = "red" if is_active else "black"
+        color = "red" if is_active else "#1e1e1e"
         rgba = Gdk.RGBA()
         rgba.parse(color)
         widget.override_background_color(Gtk.StateFlags.NORMAL, rgba)
 
-    def on_pixel_clicked(self, widget, event, x, y):
-        """Fires when a user clicks a pixel in the 16x16 grid"""
-        current_state = self.pixels[(x, y)]["active"]
-        new_state = not current_state # Toggle it
-        self.pixels[(x, y)]["active"] = new_state
-        self.set_pixel_color(widget, new_state)
+    def paint_pixel(self, x, y, state):
+        self.pixels[(x, y)]["active"] = state
+        self.set_pixel_color(self.pixels[(x, y)]["widget"], state)
+
+    def on_pixel_click(self, widget, event, x, y):
+        if event.button == 1: # Left click toggles
+            new_state = not self.pixels[(x, y)]["active"]
+            self.paint_pixel(x, y, new_state)
+
+    def on_pixel_drag(self, widget, event, x, y):
+        # Paint while holding left mouse button down
+        if event.state & Gdk.ModifierType.BUTTON1_MASK:
+            self.paint_pixel(x, y, True)
 
     def save_and_exit(self, button):
-        """Saves the settings and closes the installer"""
-        username = self.username_entry.get_text()
+        username = self.username_entry.get_text().strip()
         if not username:
-            print("Please enter a username!")
+            self.username_entry.set_placeholder_text("USERNAME REQUIRED!")
             return
 
-        # Extract the 16x16 grid into a simple array we can save
         pixel_data = []
         for y in range(16):
             row = []
@@ -110,17 +131,17 @@ class MMOSInstaller(Gtk.Window):
         settings = {
             "username": username,
             "mouse_mode": self.mode_combo.get_active_id(),
-            "privacy": self.privacy_combo.get_active_id(),
+            "visibility": self.vis_combo.get_active_id(),
+            "broadcasting": self.broad_combo.get_active_id(),
+            "friends_list": [],
             "pixel_art": pixel_data
         }
 
-        # Ensure the settings directory exists
         os.makedirs(os.path.dirname(SETTINGS_FILE), exist_ok=True)
-
         with open(SETTINGS_FILE, "w") as f:
             json.dump(settings, f, indent=4)
 
-        print(f"Settings saved to {SETTINGS_FILE}")
+        print("Setup complete! Saved to:", SETTINGS_FILE)
         Gtk.main_quit()
 
 if __name__ == '__main__':
