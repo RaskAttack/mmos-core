@@ -1,33 +1,38 @@
-async function hashDomain(domain) {
-    const msgBuffer = new TextEncoder().encode(domain);
-    const hashBuffer = await crypto.subtle.digest('SHA-256', msgBuffer);
-    const hashArray = Array.from(new Uint8Array(hashBuffer));
-    return hashArray.map(b => b.toString(16).padStart(2, '0')).join('');
+const SERVER_URL = "https://mmos.retrotechspecs.com/context";
+
+async function sendDomainToServer(domain) {
+    try {
+        const response = await fetch(SERVER_URL, {
+            method: "POST",
+            headers: {
+                "Content-Type": "application/json"
+            },
+            // Sending the clean domain exactly as requested
+            body: JSON.stringify({ domain: domain })
+        });
+        console.log("✅ Sent context to MMOS Server:", domain);
+    } catch (error) {
+        console.log("❌ Server not reached. Is it online?", error);
+    }
 }
 
-const socket = new WebSocket('ws://localhost:9999');
-
-async function processUrl(urlStr) {
+function processUrl(urlStr) {
     if (!urlStr || urlStr.startsWith('about:') || urlStr.startsWith('moz-extension:')) return;
     try {
         const url = new URL(urlStr);
-        const domain = url.hostname; 
-        const hashedContext = await hashDomain(domain);
-        console.log("👀 User is looking at:", domain);
-        console.log("🔒 Hashed to:", hashedContext);
-        
-        if (socket.readyState === WebSocket.OPEN) {
-            socket.send(JSON.stringify({ type: "web_context", hash: hashedContext }));
-        }
+        const cleanDomain = url.hostname; 
+        sendDomainToServer(cleanDomain);
     } catch (e) {}
 }
 
+// Listens for switching between open tabs
 chrome.tabs.onActivated.addListener((activeInfo) => {
     chrome.tabs.get(activeInfo.tabId, (tab) => {
         if (tab.url) processUrl(tab.url);
     });
 });
 
+// Listens for a tab loading a new website
 chrome.tabs.onUpdated.addListener((tabId, changeInfo, tab) => {
     if (changeInfo.url) processUrl(changeInfo.url);
 });
