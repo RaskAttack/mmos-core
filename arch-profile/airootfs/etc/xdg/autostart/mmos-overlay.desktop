@@ -1,0 +1,7 @@
+[Desktop Entry]
+Type=Application
+Name=MMOS Overlay
+Exec=/usr/bin/python /opt/mmos/overlay.py
+Hidden=false
+NoDisplay=false
+X-GNOME-Autostart-enabled=true
