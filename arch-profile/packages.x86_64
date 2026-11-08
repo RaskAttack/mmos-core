@@ -8,7 +8,6 @@ bcachefs-tools
 bind
 bolt
 brltty
-broadcom-wl
 btrfs-progs
 clonezilla
 cloud-init
@@ -150,5 +149,5 @@ xorg-xinit
 xdotool
 plasma-desktop
 plasma-workspace
-plasma-x11-session
+kwin-x11
 sddm
